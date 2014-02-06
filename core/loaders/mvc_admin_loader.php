@@ -55,47 +55,87 @@ class MvcAdminLoader extends MvcLoader {
 		
 		global $_registered_pages;
 	
-		$menu_position = 12;
+		$menu_position = 25;
 		
 		$menu_position = apply_filters('mvc_menu_position', $menu_position);
 		
 		$admin_pages = MvcConfiguration::get('AdminPages');
-		
-		foreach ($this->admin_controller_names as $controller_name) {
-		
-			if (isset($admin_pages[$controller_name])) {
-				if (empty($admin_pages[$controller_name]) || !$admin_pages[$controller_name]) {
-					continue;
-				}
-				$pages = $admin_pages[$controller_name];
-			} else {
-				$pages = null;
+
+		$admin_menu = MvcConfiguration::get('AdminMenu');
+
+		// Combined menu
+		if(isset($admin_menu['Type'])&&$admin_menu['Type']=='combined'){
+
+			if(isset($admin_menu['DefaultPage'])){
+				$admin_menu_home = $admin_menu['DefaultPage'];
+				$admin_menu_action = $admin_menu['DefaultAction'];
 			}
-			
-			$processed_pages = $this->process_admin_pages($controller_name, $pages);
-			
-			$hide_menu = isset($pages['hide_menu']) ? $pages['hide_menu'] : false;
-			
-			if (!$hide_menu) {
-				
-				$controller_titleized = MvcInflector::titleize($controller_name);
+			else {
+				$admin_menu_home = 'mvc_home';
+			}
+
+			//$method = $admin_controller_name.'_index';
+			$method = 'admin_'.$admin_menU_home.'_'.$admin_menu_action;
+			$this->dispatcher->{$method} = create_function('', 'MvcDispatcher::dispatch(array("controller" => "admin_events", "action" => "'.$admin_menu_action.'"));');
+
+
+			add_menu_page(
+				$admin_menu['Title'],
+				$admin_menu['Title'],
+				'administrator',
+				'mvc_home',
+				array($this->dispatcher, $method),
+				$admin_menu['Icon'],
+				$menu_position
+			);
+			foreach($this->admin_controller_names as $controller_name) {
+
+				if (isset($admin_pages[$controller_name])) {
+					if (empty($admin_pages[$controller_name]) || !$admin_pages[$controller_name]) {
+						continue;
+					}
+					$pages = $admin_pages[$controller_name];
+				} else {
+					$pages = null;
+				}
+
+				$processed_pages = $this->process_admin_pages($controller_name, $pages);
+
+				$hide_menu = isset($pages['hide_menu']) ? $pages['hide_menu'] : false;
 		
+				if(isset($admin_pages[$controller_name]['Title'])){
+					$controller_titleized = $admin_pages[$controller_name]['Title'];
+				}
+				else {
+					$controller_titleized = MvcInflector::titleize($controller_name);
+				}
+
 				$admin_controller_name = 'admin_'.$controller_name;
-			
+		
 				$top_level_handle = 'mvc_'.$controller_name;
 			
 				$method = $admin_controller_name.'_index';
 				$this->dispatcher->{$method} = create_function('', 'MvcDispatcher::dispatch(array("controller" => "'.$admin_controller_name.'", "action" => "index"));');
-				add_menu_page(
-					$controller_titleized,
-					$controller_titleized,
-					'administrator',
-					$top_level_handle,
-					array($this->dispatcher, $method),
-					null,
-					$menu_position
-				);
-			
+				$page_handle = 'mvc_'.$controller_name;
+
+				if (!$hide_menu) {	
+					add_submenu_page(
+						'mvc_home',
+						$controller_titleized,
+						$controller_titleized,
+						'administrator',
+						$page_handle,
+						array($this->dispatcher, $method)
+					);
+				}
+				else {
+					$hookname = get_plugin_page_hookname($page_handle,'');
+					if (!empty($hookname)) {
+						add_action($hookname, array($this->dispatcher, $method));
+					}
+					$_registered_pages[$hookname] = true;
+				}
+
 				foreach ($processed_pages as $key => $admin_page) {
 				
 					$method = $admin_controller_name.'_'.$admin_page['action'];
@@ -106,32 +146,90 @@ class MvcAdminLoader extends MvcLoader {
 				
 					$page_handle = $top_level_handle.'-'.$key;
 					$parent_slug = empty($admin_page['parent_slug']) ? $top_level_handle : $admin_page['parent_slug'];
-				
-					if ($admin_page['in_menu']) {
-						add_submenu_page(
-							$parent_slug,
-							$admin_page['label'].' &lsaquo; '.$controller_titleized,
-							$admin_page['label'],
-							$admin_page['capability'],
-							$page_handle,
-							array($this->dispatcher, $method)
-						);
-					} else {
-						// It looks like there isn't a more native way of creating an admin page without
-						// having it show up in the menu, but if there is, it should be implemented here.
-						// To do: set up capability handling and page title handling for these pages that aren't in the menu
-						$hookname = get_plugin_page_hookname($page_handle,'');
-						if (!empty($hookname)) {
-							add_action($hookname, array($this->dispatcher, $method));
-						}
-						$_registered_pages[$hookname] = true;
-					}
-			
-				}
-				$menu_position++;
 
+					$hookname = get_plugin_page_hookname($page_handle,'');
+					if (!empty($hookname)) {
+						add_action($hookname, array($this->dispatcher, $method));
+					}
+					$_registered_pages[$hookname] = true;
+				}
 			}
+		}
+
+		// Default separate menu
+		else {
+			foreach ($this->admin_controller_names as $controller_name) {
 			
+				if (isset($admin_pages[$controller_name])) {
+					if (empty($admin_pages[$controller_name]) || !$admin_pages[$controller_name]) {
+						continue;
+					}
+					$pages = $admin_pages[$controller_name];
+				} else {
+					$pages = null;
+				}
+				
+				$processed_pages = $this->process_admin_pages($controller_name, $pages);
+				
+				$hide_menu = isset($pages['hide_menu']) ? $pages['hide_menu'] : false;
+				
+				if (!$hide_menu) {
+					
+					$controller_titleized = MvcInflector::titleize($controller_name);
+			
+					$admin_controller_name = 'admin_'.$controller_name;
+				
+					$top_level_handle = 'mvc_'.$controller_name;
+				
+					$method = $admin_controller_name.'_index';
+					$this->dispatcher->{$method} = create_function('', 'MvcDispatcher::dispatch(array("controller" => "'.$admin_controller_name.'", "action" => "index"));');
+					add_menu_page(
+						$controller_titleized,
+						$controller_titleized,
+						'administrator',
+						$top_level_handle,
+						array($this->dispatcher, $method),
+						null,
+						$menu_position
+					);
+				
+					foreach ($processed_pages as $key => $admin_page) {
+					
+						$method = $admin_controller_name.'_'.$admin_page['action'];
+					
+						if (!method_exists($this->dispatcher, $method)) {
+							$this->dispatcher->{$method} = create_function('', 'MvcDispatcher::dispatch(array("controller" => "'.$admin_controller_name.'", "action" => "'.$admin_page['action'].'"));');
+						}
+					
+						$page_handle = $top_level_handle.'-'.$key;
+						$parent_slug = empty($admin_page['parent_slug']) ? $top_level_handle : $admin_page['parent_slug'];
+					
+						if ($admin_page['in_menu']) {
+							add_submenu_page(
+								$parent_slug,
+								$admin_page['label'].' &lsaquo; '.$controller_titleized,
+								$admin_page['label'],
+								$admin_page['capability'],
+								$page_handle,
+								array($this->dispatcher, $method)
+							);
+						} else {
+							// It looks like there isn't a more native way of creating an admin page without
+							// having it show up in the menu, but if there is, it should be implemented here.
+							// To do: set up capability handling and page title handling for these pages that aren't in the menu
+							$hookname = get_plugin_page_hookname($page_handle,'');
+							if (!empty($hookname)) {
+								add_action($hookname, array($this->dispatcher, $method));
+							}
+							$_registered_pages[$hookname] = true;
+						}
+				
+					}
+					$menu_position++;
+
+				}
+				
+			}
 		}
 	
 	}
