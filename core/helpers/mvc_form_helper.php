@@ -9,6 +9,7 @@ class MvcFormHelper extends MvcHelper {
 			'public' => false
 		);
 		$options = array_merge($defaults, $options);
+		$form_options = '';
 		$this->model_name = $model_name;
 		$this->object = MvcObjectRegistry::get_object($model_name);
 		$this->model = MvcModelRegistry::get_model($model_name);
@@ -19,10 +20,13 @@ class MvcFormHelper extends MvcHelper {
 			$router_options['id'] = $object_id;
 		}
 		
+		if($options['multipart']){
+			$form_options = ' enctype="multipart/form-data"';
+		}
 		if ($options['public']) {
-			$html = '<form action="'.MvcRouter::public_url($router_options).'" method="post">';
+			$html = '<form action="'.MvcRouter::public_url($router_options).'" method="post"'.$form_options.'>';
 		} else {
-			$html = '<form action="'.MvcRouter::admin_url($router_options).'" method="post">';
+			$html = '<form action="'.MvcRouter::admin_url($router_options).'" method="post"'.$form_options.'>';
 		}
 		
 		if ($object_id) {
